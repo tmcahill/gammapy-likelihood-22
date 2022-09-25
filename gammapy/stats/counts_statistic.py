@@ -3,9 +3,9 @@ import abc
 import numpy as np
 from scipy.stats import chi2
 from gammapy.utils.roots import find_roots
-from .fit_statistics import cash, wstat
+from .fit_statistics import cash, wstat, demb
 
-__all__ = ["WStatCountsStatistic", "CashCountsStatistic"]
+__all__ = ["WStatCountsStatistic", "CashCountsStatistic", "DembCountsStatistic"]
 
 
 class CountsStatistic(abc.ABC):
@@ -266,6 +266,66 @@ class CashCountsStatistic(CountsStatistic):
 
     def __getitem__(self, key):
         return CashCountsStatistic(n_on=self.n_on[key], mu_bkg=self.n_bkg[key])
+
+
+class DembCountsStatistic(CountsStatistic):
+    """Class to compute statistics (significance, asymmetric errors , ul) for Poisson distributed variable
+    with known background.
+
+    Parameters
+    ----------
+    n_on : int
+        Measured counts
+    mu_bkg : float
+        Known level of background
+    """
+
+    def __init__(self, n_on, mu_bkg, bkg_stats, mask):
+        self.n_on = np.asanyarray(n_on)
+        self.mu_bkg = np.asanyarray(mu_bkg)
+        self.bkg_stats = bkg_stats
+        self.mask = mask
+
+    @property
+    def n_bkg(self):
+        """Expected background counts"""
+        return self.mu_bkg
+
+    @property
+    def n_sig(self):
+        """Excess"""
+        return self.n_on - self.n_bkg
+
+    @property
+    def error(self):
+        """Approximate error from the covariance matrix."""
+        return np.sqrt(self.n_on)
+
+    @property
+    def stat_null(self):
+        """Stat value for null hypothesis, i.e. 0 expected signal counts"""
+        return demb(self.n_on, self.mu_bkg + 0, self.bkg_stats)
+
+    @property
+    def stat_max(self):
+        """Stat value for best fit hypothesis, i.e. expected signal mu = n_on - mu_bkg"""
+        return demb(self.n_on, self.n_on, self.bkg_stats, mask=self.mask)
+
+    def _stat_fcn(self, mu, delta=0, index=None):
+        return demb(self.n_on[index], self.mu_bkg[index] + mu, self.bkg_stats, mask=self.mask) - delta
+
+    def _n_sig_matching_significance_fcn(self, n_sig, significance, index):
+        TS0 = demb(n_sig + self.mu_bkg[index], self.mu_bkg[index], self.bkg_stats, mask=self.mask)
+        TS1 = demb(n_sig + self.mu_bkg[index], self.mu_bkg[index] + n_sig, self.bkg_stats, mask=self.mask)
+        return np.sign(n_sig) * np.sqrt(np.clip(TS0 - TS1, 0, None)) - significance
+
+    def sum(self, axis=None):
+        n_on = self.n_on.sum(axis=axis)
+        bkg = self.n_bkg.sum(axis=axis)
+        return DembCountsStatistic(n_on=n_on, mu_bkg=bkg)
+
+    def __getitem__(self, key):
+        return DembCountsStatistic(n_on=self.n_on[key], mu_bkg=self.n_bkg[key])
 
 
 class WStatCountsStatistic(CountsStatistic):

@@ -246,7 +246,7 @@ class IRF(metaclass=abc.ABCMeta):
         str_ += f"\tdtype : {self.data.dtype}\n"
         return str_.expandtabs(tabsize=2)
 
-    def evaluate(self, method=None, **kwargs):
+    def evaluate(self, method=None, get_weights=False, **kwargs):
         """Evaluate IRF
 
         Parameters
@@ -277,7 +277,10 @@ class IRF(metaclass=abc.ABCMeta):
             if coord is not None:
                 coords_default[key] = u.Quantity(coord, copy=False)
 
-        data = self._interpolate(coords_default.values(), method=method)
+        if get_weights:
+            data, weights = self._interpolate(coords_default.values(), method=method, get_weights=get_weights)
+        else:
+            data = self._interpolate(coords_default.values(), method=method)
 
         if self.interp_kwargs["fill_value"] is not None:
             idxs = self.axes.coord_to_idx(coords_default, clip=False)
@@ -287,13 +290,17 @@ class IRF(metaclass=abc.ABCMeta):
                 mask = mask.squeeze()
             data[mask] = self.interp_kwargs["fill_value"]
             data[~np.isfinite(data)] = self.interp_kwargs["fill_value"]
-        return data
+
+        if get_weights:
+            return data, weights
+        else:
+            return data
 
     @staticmethod
     def _mask_out_bounds(invalid):
         return np.any(invalid, axis=0)
 
-    def integrate_log_log(self, axis_name, **kwargs):
+    def integrate_log_log(self, axis_name, get_weights=False, **kwargs):
         """Integrate along a given axis.
 
         This method uses log-log trapezoidal integration.
@@ -311,9 +318,16 @@ class IRF(metaclass=abc.ABCMeta):
             Returns 2D array with axes offset
         """
         axis = self.axes.index(axis_name)
-        data = self.evaluate(**kwargs, method="linear")
+        if get_weights:
+            data, weights = self.evaluate(**kwargs, method="linear", get_weights=get_weights)
+        else:
+            data = self.evaluate(**kwargs, method="linear")
+        #print(len(data))
         values = kwargs[axis_name]
-        return trapz_loglog(data, values, axis=axis)
+        if get_weights:
+            return trapz_loglog(data, values, axis=axis), weights
+        else:
+            return trapz_loglog(data, values, axis=axis)
 
     def cumsum(self, axis_name):
         """Compute cumsum along a given axis

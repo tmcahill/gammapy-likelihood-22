@@ -109,7 +109,7 @@ def _map_spectrum_weight(map, spectrum=None):
 
 
 def make_map_background_irf(
-    pointing, ontime, bkg, geom, oversampling=None, use_region_center=True
+    pointing, ontime, bkg, geom, bkg_stats=None, oversampling=None, use_region_center=True
 ):
     """Compute background map from background IRFs.
 
@@ -199,7 +199,11 @@ def make_map_background_irf(
         coords["fov_lon"] = fov_lon
         coords["fov_lat"] = fov_lat
 
-    bkg_de = bkg.integrate_log_log(**coords, axis_name="energy")
+    if bkg_stats is not None:
+        bkg_de, weights = bkg.integrate_log_log(**coords, axis_name="energy", get_weights=True)
+    else:
+        bkg_de = bkg.integrate_log_log(**coords, axis_name="energy")
+
     data = (bkg_de * d_omega * ontime).to_value("")
 
     if not use_region_center:
@@ -209,6 +213,10 @@ def make_map_background_irf(
 
     if oversampling is not None:
         bkg_map = bkg_map.downsample(factor=oversampling, axis_name="energy")
+
+    if bkg_stats is not None:
+        weights["counts"] = bkg_stats
+        return bkg_map, weights
 
     return bkg_map
 

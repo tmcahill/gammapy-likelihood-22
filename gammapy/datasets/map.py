@@ -12,9 +12,11 @@ from gammapy.maps import Map, MapAxis
 from gammapy.modeling.models import DatasetModels, FoVBackgroundModel
 from gammapy.stats import (
     CashCountsStatistic,
+    DembCountsStatistic,
     WStatCountsStatistic,
     cash,
     cash_sum_cython,
+    demb,
     get_wstat_mu_bkg,
     wstat,
 )
@@ -196,6 +198,7 @@ class MapDataset(Dataset):
         counts=None,
         exposure=None,
         background=None,
+        background_stats=None,
         psf=None,
         edisp=None,
         mask_safe=None,
@@ -232,6 +235,7 @@ class MapDataset(Dataset):
         self.gti = gti
         self.models = models
         self.meta_table = meta_table
+        self.background_stats = background_stats
 
     # TODO: keep or remove?
     @property
@@ -341,6 +345,9 @@ class MapDataset(Dataset):
                     self._evaluators[model.name] = evaluator
 
         self._models = models
+
+    def set_stat_type(self, new_stat_type):
+        self.stat_type = new_stat_type
 
     @property
     def evaluators(self):
@@ -770,7 +777,7 @@ class MapDataset(Dataset):
                         "livetime"
                     ].copy()
 
-        if self.stat_type == "cash":
+        if self.stat_type == "cash" or self.stat_type == "demb":
             if self.background and other.background:
                 background = self.npred_background() * self.mask_safe
                 background.stack(
@@ -805,7 +812,10 @@ class MapDataset(Dataset):
 
     def stat_array(self):
         """Likelihood per bin given the current model parameters"""
-        return cash(n_on=self.counts.data, mu_on=self.npred().data)
+        if self.stat_type == "demb":
+            return demb(n_on=self.counts.data, mu_on=self.npred().data, bkg_stats=self.background_stats, mask=self.mask.data)
+        else:
+            return cash(n_on=self.counts.data, mu_on=self.npred().data)
 
     def residuals(self, method="diff", **kwargs):
         """Compute residuals map.
@@ -978,6 +988,9 @@ class MapDataset(Dataset):
             )
         elif self.stat_type == "cash":
             stat = CashCountsStatistic(counts_spec.data, npred_spec.data)
+        elif self.stat_type == "demb":
+            stat = DembCountsStatistic(counts_spec.data, npred_spec.data, bkg_stats=self.background_stats)
+
         excess_error = stat.error
 
         if method == "diff":
@@ -1071,6 +1084,16 @@ class MapDataset(Dataset):
     def stat_sum(self):
         """Total likelihood given the current model parameters."""
         counts, npred = self.counts.data.astype(float), self.npred().data
+        
+        if self.stat_type == "demb":
+            if self.mask is not None:
+                return np.sum(
+                    demb(counts, npred, self.background_stats, mask=self.mask.data)
+                )
+            else:
+                return np.sum(
+                    demb(counts, npred, self.background_stats)
+                )
 
         if self.mask is not None:
             return cash_sum_cython(counts[self.mask.data], npred[self.mask.data])
@@ -1321,6 +1344,9 @@ class MapDataset(Dataset):
     @property
     def _counts_statistic(self):
         """Counts statistics of the dataset."""
+        if self.stat_type == "demb":
+            return DembCountsStatistic(self.counts, self.background, self.background_stats, self.mask.data)
+
         return CashCountsStatistic(self.counts, self.background)
 
     def info_dict(self, in_safe_data_range=True):
@@ -1491,7 +1517,7 @@ class MapDataset(Dataset):
         ]:
             kwargs[key] = getattr(dataset, key)
 
-        if self.stat_type == "cash":
+        if self.stat_type == "cash" or self.stat_type == "demb":
             kwargs["background"] = dataset.background
 
         return SpectrumDataset(**kwargs)
@@ -1530,10 +1556,11 @@ class MapDataset(Dataset):
                 region, np.sum, weights=self.mask_safe
             )
 
-        if self.stat_type == "cash" and self.background:
-            kwargs["background"] = self.background.to_region_nd_map(
-                region, func=np.sum, weights=self.mask_safe
-            )
+        if self.stat_type == "cash" or self.stat_type == "demb":
+            if self.background:
+                kwargs["background"] = self.background.to_region_nd_map(
+                    region, func=np.sum, weights=self.mask_safe
+                )
 
         if self.exposure:
             kwargs["exposure"] = self.exposure.to_region_nd_map(region, func=np.mean)
@@ -1580,8 +1607,9 @@ class MapDataset(Dataset):
         if self.exposure is not None:
             kwargs["exposure"] = self.exposure.cutout(**cutout_kwargs)
 
-        if self.background is not None and self.stat_type == "cash":
-            kwargs["background"] = self.background.cutout(**cutout_kwargs)
+        if self.background is not None:
+            if self.stat_type == "cash" or self.stat_type == "demb":
+                kwargs["background"] = self.background.cutout(**cutout_kwargs)
 
         if self.edisp is not None:
             kwargs["edisp"] = self.edisp.cutout(**cutout_kwargs)
@@ -1637,10 +1665,11 @@ class MapDataset(Dataset):
             else:
                 kwargs["exposure"] = self.exposure.copy()
 
-        if self.background is not None and self.stat_type == "cash":
-            kwargs["background"] = self.background.downsample(
-                factor=factor, axis_name=axis_name, weights=self.mask_safe
-            )
+        if self.background is not None:
+            if self.stat_type == "cash" or self.stat_type == "demb":
+                kwargs["background"] = self.background.downsample(
+                    factor=factor, axis_name=axis_name, weights=self.mask_safe
+                )
 
         if self.edisp is not None:
             if axis_name is not None:
@@ -1757,8 +1786,9 @@ class MapDataset(Dataset):
         if self.exposure is not None:
             kwargs["exposure"] = self.exposure.slice_by_idx(slices=slices)
 
-        if self.background is not None and self.stat_type == "cash":
-            kwargs["background"] = self.background.slice_by_idx(slices=slices)
+        if self.background is not None:
+            if self.stat_type == "cash" or self.stat_type == "demb":
+                kwargs["background"] = self.background.slice_by_idx(slices=slices)
 
         if self.edisp is not None:
             kwargs["edisp"] = self.edisp.slice_by_idx(slices=slices)
@@ -1867,10 +1897,11 @@ class MapDataset(Dataset):
                 axis=energy_axis, weights=self.mask_safe
             )
 
-        if self.background is not None and self.stat_type == "cash":
-            kwargs["background"] = self.background.resample_axis(
-                axis=energy_axis, weights=self.mask_safe
-            )
+        if self.background is not None: 
+            if self.stat_type == "cash" or self.stat_type == "demb":
+                kwargs["background"] = self.background.resample_axis(
+                    axis=energy_axis, weights=self.mask_safe
+                )
 
         # Mask_safe or mask_irf??
         if isinstance(self.edisp, EDispKernelMap):

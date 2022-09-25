@@ -1,6 +1,7 @@
 # Licensed under a 3-clause BSD style license - see LICENSE.rst
 """Interpolation utilities"""
 from itertools import compress
+import itertools 
 import numpy as np
 import scipy.interpolate
 from astropy import units as u
@@ -65,6 +66,10 @@ class ScaledRegularGridInterpolator:
         values_scaled = self.scale(values)
         points_scaled = self._scale_points(points=points)
 
+        self._values_scaled = values_scaled
+        self._points_scaled = points_scaled
+        self._kwargs = kwargs
+
         if extrapolate:
             kwargs.setdefault("bounds_error", False)
             kwargs.setdefault("fill_value", None)
@@ -98,7 +103,7 @@ class ScaledRegularGridInterpolator:
 
         return tuple(points_scaled)
 
-    def __call__(self, points, method=None, clip=True, **kwargs):
+    def __call__(self, points, method=None, clip=True, get_weights=False, **kwargs):
         """Interpolate data points.
 
         Parameters
@@ -117,14 +122,36 @@ class ScaledRegularGridInterpolator:
         if self.axis is None:
             points = np.broadcast_arrays(*points)
             points_interp = np.stack([_.flat for _ in points]).T
-            values = self._interpolate(points_interp, method, **kwargs)
-            values = self.scale.inverse(values.reshape(points[0].shape))
+            if get_weights:
+                weighted_interpolator = RegularGridInterpolatorWithWeights(points=self._points_scaled, values=self._values_scaled, **self._kwargs)
+                values, weights = weighted_interpolator(points_interp, method, get_weights=get_weights, **kwargs)
+
+            else:
+                values = self._interpolate(points_interp, method, **kwargs)
+                values = self.scale.inverse(values.reshape(points[0].shape))
+
         else:
             values = self._interpolate(points[0])
             values = self.scale.inverse(values)
 
         if clip:
             values = np.clip(values, 0, np.inf)
+
+        if get_weights:
+             # Reshape weights arrays to match new geom.
+            weights["weights"] = np.array(
+                weights["weights"],
+                # TODO: not have this hardcoded to 4 values
+                dtype=[('a', np.float64),('b', np.float64),('c', np.float64),('d', np.float64)]
+            ).reshape(values.shape)
+
+            weights["indices"] = np.array(
+                # TODO: not have this hardcoded to 4 values
+                weights["indices"], 
+                dtype=[('a', np.ndarray),('b', np.ndarray),('c', np.ndarray),('d', np.ndarray)]
+            ).reshape(values.shape)
+            
+            return values, weights
 
         return values
 
@@ -250,3 +277,132 @@ def interpolate_profile(x, y, interp_scale="sqrt"):
     return ScaledRegularGridInterpolator(
         points=(x,), values=sign * y, values_scale=interp_scale
     )
+
+
+"""
+This class also returns the interpolation weights per bin to be used in cost statistics dealing with weighted binning.
+"""
+class RegularGridInterpolatorWithWeights(scipy.interpolate.RegularGridInterpolator):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+
+    def __call__(self, xi, method=None, get_weights=False):
+        from scipy.interpolate.interpnd import _ndim_coords_from_arrays
+        """
+        Interpolation at coordinates
+
+        Parameters
+        ----------
+        xi : ndarray of shape (..., ndim)
+            The coordinates to sample the gridded data at
+
+        method : str
+            The method of interpolation to perform. Supported are "linear" and
+            "nearest".
+
+        """
+        method = self.method if method is None else method
+        if method not in ["linear", "nearest"]:
+            raise ValueError("Method '%s' is not defined" % method)
+
+        ndim = len(self.grid)
+        xi = _ndim_coords_from_arrays(xi, ndim=ndim)
+        if xi.shape[-1] != len(self.grid):
+            raise ValueError("The requested sample points xi have dimension "
+                             "%d, but this RegularGridInterpolator has "
+                             "dimension %d" % (xi.shape[1], ndim))
+
+        xi_shape = xi.shape
+        xi = xi.reshape(-1, xi_shape[-1])
+
+        if self.bounds_error:
+            for i, p in enumerate(xi.T):
+                if not np.logical_and(np.all(self.grid[i][0] <= p),
+                                      np.all(p <= self.grid[i][-1])):
+                    raise ValueError("One of the requested xi is out of bounds "
+                                     "in dimension %d" % i)
+
+        indices, norm_distances, out_of_bounds = self._find_indices(xi.T)
+        if method == "linear":
+            if get_weights:
+                result, weights = self._evaluate_linear(indices,
+                                                        norm_distances,
+                                                        out_of_bounds,
+                                                        get_weights=get_weights)
+            else:
+                result = self._evaluate_linear(indices,
+                                               norm_distances,
+                                               out_of_bounds)
+        elif method == "nearest":
+            result = self._evaluate_nearest(indices,
+                                            norm_distances,
+                                            out_of_bounds)
+        if not self.bounds_error and self.fill_value is not None:
+            result[out_of_bounds] = self.fill_value
+            if get_weights:
+                weights["weights"][out_of_bounds] = None
+                weights["indices"][out_of_bounds] = None
+
+        if get_weights:
+            return result.reshape(xi_shape[:-1] + self.values.shape[ndim:]), weights
+        else:
+            return result.reshape(xi_shape[:-1] + self.values.shape[ndim:])
+
+    """
+    Debug prints left in for now
+    Needs optimized
+    """
+    def _evaluate_linear(self, indices, norm_distances, out_of_bounds, get_weights=False):
+        with np.printoptions(threshold=1000, edgeitems=50):
+            vslice = (slice(None),) + (None,)*(self.values.ndim - len(indices))
+
+            # find relevant values
+            # each i and i+1 represents a edge
+            edges = itertools.product(*[[i, i + 1] for i in indices])
+            values = 0.
+            weights = []
+            weights_indices = []
+
+            # 4x, once per bin edges
+            for edge_indices in edges:
+                weight = 1.
+                # print("OUTER LOOP")
+                # 2x, once per dimension index
+                inner_weights_arr = []
+                for ei, i, yi in zip(edge_indices, indices, norm_distances):
+                    # print("INNER LOOP")
+
+                    # print(edge_indices)
+                    # print(indices) 
+                    # print(norm_distances)
+
+                    # print("ei")
+                    # print(ei)
+                    # print("i")
+                    # print(i)
+                    # print("yi")
+                    # print(yi)
+
+                    weight *= np.where(ei == i, 1 - yi, yi)
+
+                    # print("weight")
+                    # print(weight)
+
+                    if get_weights:
+                        inner_weights_arr.append(weight.copy())
+
+                # print("OUTER LOOP PT2")
+                # print(self.values[edge_indices])
+                # print(weight[vslice])
+                values += np.asarray(self.values[edge_indices]) * weight[vslice]
+
+                """Place weights in array"""
+                if get_weights:
+                    weights.append(weight[vslice])
+                    weights_indices.append(np.column_stack(edge_indices))
+
+            # List/zip right now is for formatting the dtype easily
+            if get_weights:
+                return values, {"weights": list(zip(*weights)), "indices": list(zip(*weights_indices)), "values": self.values}
+            else:
+                return values
