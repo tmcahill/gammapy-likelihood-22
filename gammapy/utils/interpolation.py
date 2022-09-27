@@ -125,6 +125,7 @@ class ScaledRegularGridInterpolator:
             if get_weights:
                 weighted_interpolator = RegularGridInterpolatorWithWeights(points=self._points_scaled, values=self._values_scaled, **self._kwargs)
                 values, weights = weighted_interpolator(points_interp, method, get_weights=get_weights, **kwargs)
+                values = self.scale.inverse(values.reshape(points[0].shape))
 
             else:
                 values = self._interpolate(points_interp, method, **kwargs)

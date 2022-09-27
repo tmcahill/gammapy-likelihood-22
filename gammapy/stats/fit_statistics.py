@@ -121,87 +121,95 @@ Prototype implementation; needs optimized.
 
 np.vectorize() is essentially a sequential for-loop wrapper.
 """
-def demb(n_on, mu_on, bkg_stats, mask=None, truncation_value=TRUNCATION_VALUE):
-    # Observed counts
-    n_on = np.asanyarray(n_on[mask], dtype=np.float64)
+def demb(n_on, mu_on, a_eff, beta, k, s, truncation_value=TRUNCATION_VALUE):
+    n_on = np.asanyarray(n_on, dtype=np.float64)
     # Expected counts
-    mu_on = np.asanyarray(mu_on[mask], dtype=np.float64)
+    mu_on = np.asanyarray(mu_on, dtype=np.float64)
+#def demb(n_on, mu_on, bkg_stats, mask=None, truncation_value=TRUNCATION_VALUE):
+    # # Observed counts
+    # n_on = np.asanyarray(n_on[mask], dtype=np.float64)
+    # # Expected counts
+    # mu_on = np.asanyarray(mu_on[mask], dtype=np.float64)
 
 
-    # 8 Weights per bin: 2 interp bounds per the 2 bkg-irf dimensions per the 2 integral bounds
-    weights_lower = bkg_stats["weights"][:-1][mask]
-    weights_upper = bkg_stats["weights"][1:][mask]
+# ""    # 8 Weights per bin: 2 interp bounds per the 2 bkg-irf dimensions per the 2 integral bounds
+#     weights_lower = bkg_stats["weights"][:-1][mask]
+#     weights_upper = bkg_stats["weights"][1:][mask]
 
-    # Indices of the original background IRF's statistics corresponding to each weight
-    indices_lower = bkg_stats["indices"][:-1][mask]
-    indices_upper = bkg_stats["indices"][1:][mask]
+#     # Indices of the original background IRF's statistics corresponding to each weight
+#     indices_lower = bkg_stats["indices"][:-1][mask]
+#     indices_upper = bkg_stats["indices"][1:][mask]
     
 
-    # NOTE is this correct?? Simply the sum of all raw counts?
-    M_k = bkg_stats["counts"].sum()
+#     # NOTE is this correct?? Simply the sum of all raw counts?
+#     M_k = bkg_stats["counts"].sum()
 
 
-    """ Calculate mu_theta """
+#     """ Calculate mu_theta """
 
-    mu_theta = 0
-    # Sum mu_theta from indices list
-    def sum_raw_counts(index_array):
-        mu_theta = 0
-        # TODO: Vectorize this too??
-        for indices in index_array:
-            # sum `a_k`s
-            # TODO: support n-dimensionality
-            mu_theta += bkg_stats["counts"][indices[0]][indices[1]] / M_k
+#     mu_theta = 0
+#     # Sum mu_theta from indices list
+#     def sum_raw_counts(index_array):
+#         mu_theta = 0
+#         # TODO: Vectorize this too??
+#         for indices in index_array:
+#             # sum `a_k`s
+#             # TODO: support n-dimensionality
+#             mu_theta += bkg_stats["counts"][indices[0]][indices[1]] / M_k
 
-        return mu_theta
+#         return mu_theta
 
-    vectorized_mu_theta = np.vectorize(sum_raw_counts)
-    mu_theta = vectorized_mu_theta(indices_upper) + vectorized_mu_theta(indices_lower) 
-
-
-    """ Calculate `s` """
-
-    # -- Numerator --
-    def sum_half_weights(weights_array):
-        sum = 0
-        for weight in weights_array:
-            # Absolute value since some weights are negative??
-            sum += abs(weight)
-        return sum
-        # Weights are halved to all sum to 1, since the sum of both bounds' weights sums to two
-        return sum/2
-
-    vectorized_sum_half_weights = np.vectorize(sum_half_weights)
-    sum_weights = vectorized_sum_half_weights(weights_upper) + vectorized_sum_half_weights(weights_lower)
-
-    # -- Denominator --
-    def sum_half_weight_squares(weights_array):
-        sum = 0
-        for weight in weights_array:
-            #sum += (weight/2) ** 2
-            sum += (weight) ** 2
-        return sum
-
-    vectorized_sum_half_weight_squares = np.vectorize(sum_half_weight_squares)
-    sum_squared_weights = vectorized_sum_half_weight_squares(weights_upper) + vectorized_sum_half_weight_squares(weights_lower)
-
-    s = sum_weights / sum_squared_weights
+#     vectorized_mu_theta = np.vectorize(sum_raw_counts)
+#     mu_theta = vectorized_mu_theta(indices_upper) + vectorized_mu_theta(indices_lower) 
 
 
-    """ Calculate effective values """
-    a_eff = s * sum_weights
+#     """ Calculate `s` """
+
+#     # -- Numerator --
+#     def sum_half_weights(weights_array):
+#         sum = 0
+#         for weight in weights_array:
+#             # Absolute value since some weights are negative??
+#             sum += abs(weight)
+#         return sum
+#         # Weights are halved to all sum to 1, since the sum of both bounds' weights sums to two
+#         return sum/2
+
+#     vectorized_sum_half_weights = np.vectorize(sum_half_weights)
+#     sum_weights = vectorized_sum_half_weights(weights_upper) + vectorized_sum_half_weights(weights_lower)
+
+#     # -- Denominator --
+#     def sum_half_weight_squares(weights_array):
+#         sum = 0
+#         for weight in weights_array:
+#             #sum += (weight/2) ** 2
+#             sum += (weight) ** 2
+#         return sum
+
+#     vectorized_sum_half_weight_squares = np.vectorize(sum_half_weight_squares)
+#     sum_squared_weights = vectorized_sum_half_weight_squares(weights_upper) + vectorized_sum_half_weight_squares(weights_lower)
+
+#     s = sum_weights / sum_squared_weights
+
+
+#     """ Calculate effective values """
+#     a_eff = s * sum_weights
+
+#     """ Calculate beta """
+#     k = s * mu_theta 
+#     beta = a_eff / (k + a_eff)
+
     # n_eff is 1 everywhere as data is unweighted
     n_eff = n_on.copy()
     n_eff[True] = 1
 
 
-    """ Calculate beta """
-    k = s * mu_theta 
-    beta = a_eff / (k + a_eff)
+    #stat = cash(n_on, mu_on) #+ cash(a_eff, beta * a_eff)
+    # stat = cash(s*n_on, s*mu_on) #+ cash(a_eff, beta * a_eff)
+    stat = cash(n_on, s*mu_on) #+ cash(a_eff, beta * a_eff)
 
-
-    stat = cash(n_on, mu_on) #+ cash(a_eff, beta * a_eff)
-   # stat = cash(s*n_on, s*mu_on) #+ cash(a_eff, beta * a_eff)
+    # Works??
+    #stat = cash(n_eff, s*mu_on)
     #stat = cash(n_eff, s*mu_on) + cash(a_eff, beta * a_eff)
     
 
