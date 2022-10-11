@@ -246,7 +246,7 @@ class IRF(metaclass=abc.ABCMeta):
         str_ += f"\tdtype : {self.data.dtype}\n"
         return str_.expandtabs(tabsize=2)
 
-    def evaluate(self, method=None, get_weights=False, **kwargs):
+    def evaluate(self, method=None, bkg_stats=None, get_weights=False, **kwargs):
         """Evaluate IRF
 
         Parameters
@@ -262,6 +262,7 @@ class IRF(metaclass=abc.ABCMeta):
             Interpolated values
         """
         # TODO: change to coord dict?
+        print(kwargs)
         non_valid_axis = set(kwargs).difference(self.axes.names)
 
         if non_valid_axis:
@@ -278,7 +279,7 @@ class IRF(metaclass=abc.ABCMeta):
                 coords_default[key] = u.Quantity(coord, copy=False)
 
         if get_weights:
-            data, weights = self._interpolate(coords_default.values(), method=method, get_weights=get_weights)
+            data, weights = self._interpolate(coords_default.values(), method=method, bkg_stats=bkg_stats, get_weights=get_weights)
         else:
             data = self._interpolate(coords_default.values(), method=method)
 
@@ -300,7 +301,7 @@ class IRF(metaclass=abc.ABCMeta):
     def _mask_out_bounds(invalid):
         return np.any(invalid, axis=0)
 
-    def integrate_log_log(self, axis_name, get_weights=False, **kwargs):
+    def integrate_log_log(self, axis_name, bkg_stats=None, get_weights=False, **kwargs):
         """Integrate along a given axis.
 
         This method uses log-log trapezoidal integration.
@@ -319,13 +320,13 @@ class IRF(metaclass=abc.ABCMeta):
         """
         axis = self.axes.index(axis_name)
         if get_weights:
-            data, weights = self.evaluate(**kwargs, method="linear", get_weights=get_weights)
+            data, weights = self.evaluate(**kwargs, method="linear", bkg_stats=bkg_stats, get_weights=get_weights)
         else:
             data = self.evaluate(**kwargs, method="linear")
         #print(len(data))
         values = kwargs[axis_name]
         if get_weights:
-            return trapz_loglog(data, values, axis=axis), weights
+            return trapz_loglog(data, values, axis=axis, weights=weights), weights
         else:
             return trapz_loglog(data, values, axis=axis)
 

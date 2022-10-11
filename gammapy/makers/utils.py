@@ -200,7 +200,7 @@ def make_map_background_irf(
         coords["fov_lat"] = fov_lat
 
     if bkg_stats is not None:
-        bkg_de, weights = bkg.integrate_log_log(**coords, axis_name="energy", get_weights=True)
+        bkg_de, weights = bkg.integrate_log_log(**coords, axis_name="energy", bkg_stats=bkg_stats, get_weights=True)
     else:
         bkg_de = bkg.integrate_log_log(**coords, axis_name="energy")
 

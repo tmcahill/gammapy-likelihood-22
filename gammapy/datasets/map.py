@@ -370,26 +370,31 @@ class MapDataset(Dataset):
             indices_upper = bkg_stats["indices"][1:]
 
 
-        # NOTE is this correct?? Simply the sum of all raw counts?
-        M_k = bkg_stats["counts"].sum()
+        # # NOTE is this correct?? Simply the sum of all raw counts?
+        # M_k = bkg_stats["counts"].sum()
 
 
-        """ Calculate mu_theta """
+        # """ Calculate mu_theta """
 
-        mu_theta = 0
-        # Sum mu_theta from indices list
-        def sum_raw_counts(index_array):
-            mu_theta = 0
-            # TODO: Vectorize this too??
-            for indices in index_array:
-                # sum `a_k`s
-                # TODO: support n-dimensionality
-                mu_theta += bkg_stats["counts"][indices[0]][indices[1]] / M_k
+        # mu_theta = 0
+        # # Sum mu_theta from indices list
+        # def sum_raw_counts(index_array):
+        #     mu_theta = 0
+        #     # TODO: Vectorize this too??
+        #     for indices in index_array:
+        #         # sum `a_k`s
+        #         # TODO: support n-dimensionality
+        #         mu_theta += bkg_stats["counts"][indices[0]][indices[1]] / M_k
 
-            return mu_theta
+        #     return mu_theta
 
-        vectorized_mu_theta = np.vectorize(sum_raw_counts)
-        mu_theta = vectorized_mu_theta(indices_upper) + vectorized_mu_theta(indices_lower) 
+        # vectorized_mu_theta = np.vectorize(sum_raw_counts)
+        # mu_theta = vectorized_mu_theta(indices_upper) + vectorized_mu_theta(indices_lower) 
+
+        # def mult_weights(index_array):
+        #     for index in index_array:
+        #         a_weighted = 
+
 
 
         """ Calculate `s` """
@@ -399,7 +404,8 @@ class MapDataset(Dataset):
             sum = 0
             for weight in weights_array:
                 # Absolute value since some weights are negative??
-                sum += abs(weight)
+                #sum += abs(weight)
+                sum += weight
             return sum
             # Weights are halved to all sum to 1, since the sum of both bounds' weights sums to two
             return sum/2
@@ -423,11 +429,13 @@ class MapDataset(Dataset):
 
         """ Calculate effective values """
         a_eff = s * sum_weights
-
+        #a_eff = 1/sum_squared_weights
+        print(sum_weights)
         """ Calculate beta """
-        k = s * mu_theta 
-        beta = a_eff / (k + a_eff)
-
+        # k = s * mu_theta 
+        # beta = a_eff / (k + a_eff)
+        #print("aeff shape: ", a_eff.shape)
+        return (a_eff,)#, dummy, dummy, s
         return a_eff, beta, k, s
 
 

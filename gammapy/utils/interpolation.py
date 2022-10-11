@@ -287,7 +287,7 @@ class RegularGridInterpolatorWithWeights(scipy.interpolate.RegularGridInterpolat
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
-    def __call__(self, xi, method=None, get_weights=False):
+    def __call__(self, xi, method=None, bkg_stats=None, get_weights=False):
         from scipy.interpolate.interpnd import _ndim_coords_from_arrays
         """
         Interpolation at coordinates
@@ -329,6 +329,7 @@ class RegularGridInterpolatorWithWeights(scipy.interpolate.RegularGridInterpolat
                 result, weights = self._evaluate_linear(indices,
                                                         norm_distances,
                                                         out_of_bounds,
+                                                        bkg_stats=bkg_stats,
                                                         get_weights=get_weights)
             else:
                 result = self._evaluate_linear(indices,
@@ -343,6 +344,7 @@ class RegularGridInterpolatorWithWeights(scipy.interpolate.RegularGridInterpolat
             if get_weights:
                 weights["weights"][out_of_bounds] = None
                 weights["indices"][out_of_bounds] = None
+                #weights["errors"] = np.reshape(weights["errors"], (xi_shape[:-1] + self.values.shape[ndim:]))
 
         if get_weights:
             return result.reshape(xi_shape[:-1] + self.values.shape[ndim:]), weights
@@ -353,7 +355,7 @@ class RegularGridInterpolatorWithWeights(scipy.interpolate.RegularGridInterpolat
     Debug prints left in for now
     Needs optimized
     """
-    def _evaluate_linear(self, indices, norm_distances, out_of_bounds, get_weights=False):
+    def _evaluate_linear(self, indices, norm_distances, out_of_bounds, bkg_stats=None, get_weights=False):
         with np.printoptions(threshold=1000, edgeitems=50):
             vslice = (slice(None),) + (None,)*(self.values.ndim - len(indices))
 
@@ -361,8 +363,11 @@ class RegularGridInterpolatorWithWeights(scipy.interpolate.RegularGridInterpolat
             # each i and i+1 represents a edge
             edges = itertools.product(*[[i, i + 1] for i in indices])
             values = 0.
+            errors = 0.
+            unweighted_errors = 0
             weights = []
             weights_indices = []
+            bkg_errors = bkg_stats
 
             # 4x, once per bin edges
             for edge_indices in edges:
@@ -396,14 +401,32 @@ class RegularGridInterpolatorWithWeights(scipy.interpolate.RegularGridInterpolat
                 # print(self.values[edge_indices])
                 # print(weight[vslice])
                 values += np.asarray(self.values[edge_indices]) * weight[vslice]
+                unweighted_errors += np.asarray(bkg_errors[edge_indices])
+                errors += np.asarray(bkg_errors[edge_indices]) * weight[vslice]
 
                 """Place weights in array"""
                 if get_weights:
+                    # errors.append(np.column_stack(bkg_stats[edge_indices]))
                     weights.append(weight[vslice])
                     weights_indices.append(np.column_stack(edge_indices))
 
             # List/zip right now is for formatting the dtype easily
+            print('bkg_stats')
+            print(bkg_stats)
+            print("self.values")
+            print(self.values)
+            # print(errors)
+            # print(unweighted_errors)
+            # print(weights_indices)
+
             if get_weights:
-                return values, {"weights": list(zip(*weights)), "indices": list(zip(*weights_indices)), "values": self.values}
+                return values, {
+                        "weights": list(zip(*weights)), 
+                        "indices": list(zip(*weights_indices)), 
+                        "values": self.values,
+                        "interp_vals": values,
+                        "errors": errors,
+                        "unweighted_errors": unweighted_errors
+                    }
             else:
                 return values
