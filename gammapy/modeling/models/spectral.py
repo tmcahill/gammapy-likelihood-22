@@ -250,6 +250,29 @@ class SpectralModel(ModelBase):
             energy_max=energy_max,
             **kwargs,
         )
+    
+    @staticmethod
+    def static_integral_error(
+        self,
+        energy_min,
+        energy_max,
+        index,
+        amplitude,
+        reference,
+        epsilon=1e-4,
+        **kwargs
+    ):
+        return self._propagate_error(
+            epsilon=epsilon,
+            fct=self.evaluate_integral,
+            energy_min=energy_min,
+            energy_max=energy_max,
+            index=index,
+            amplitude=amplitude,
+            reference=reference,
+            **kwargs
+        )
+    
 
     def energy_flux(self, energy_min, energy_max, **kwargs):
         r"""Compute energy flux in given energy range.
@@ -726,6 +749,68 @@ class PowerLawSpectralModel(SpectralModel):
             integral[mask] = (amplitude * reference * np.log(energy_max / energy_min))[
                 mask
             ]
+
+        return integral
+
+    @staticmethod
+    def evaluate_integral_with_rate_errors(
+        energy_min, energy_max, index, amplitude, reference, index_error, amp_error
+    ):
+        r"""Integrate power law analytically (static function).
+
+        .. math::
+            F(E_{min}, E_{max}) = \int_{E_{min}}^{E_{max}}\phi(E)dE = \left.
+            \phi_0 \frac{E_0}{-\Gamma + 1} \left( \frac{E}{E_0} \right)^{-\Gamma + 1}
+            \right \vert _{E_{min}}^{E_{max}}
+
+        Parameters
+        ----------
+        energy_min, energy_max : `~astropy.units.Quantity`
+            Lower and upper bound of integration range
+        """
+        # val_error = index_error
+        val = -1 * index + 1
+
+        prefactor = amplitude * reference / val
+
+        # prefactor error
+        val_error_term = np.square(index_error / val)
+        amp_error_term = np.square(amp_error / amplitude)
+        #      z = C * x * y
+        # -->  z_err = z * |C| * sqrt[ (x_err/x)^2 + (y_err/y)^2 ]
+        prefactor_error = prefactor * np.abs(amplitude) * np.sqrt(val_error_term + amp_error_term)
+        
+        upper_term = energy_max / reference
+        upper = np.power(upper_term, val)
+        
+        # bounds errors
+        #
+        # d/dx(y^x) = y^x log(y)
+        upper_der = upper * log(upper_term)
+        #      z = f(x)
+        # -->  z_error = |f'(x)| * x_error
+        upper_error = np.abs(upper_der) * index_error
+
+        lower_term = (energy_min / reference)
+        lower = np.power(lower_term, val)
+        lower_der = lower * log(lower_term)
+        lower_error = np.abs(lower_der) * index_error
+
+        bound = upper - lower
+        integral = prefactor * (bound)
+        
+        # result error
+        bound_error = np.sqrt(np.square(upper_error) + np.square(lower_error))
+        prefactor_error_term = np.square(prefactor_error / prefactor)
+        bounds_error_term = np.square(bound_error / bound)
+        integral_error = integral * np.sqrt(prefactor_error_term + bounds_error_term)
+
+        mask = np.isclose(val, 0)
+
+        if mask.any():
+            constant = reference * np.log(energy_max / energy_min)
+            integral[mask] = (amplitude * constant)[mask]
+            integral_error[mask] = (np.abs(constant) * amp_error)[mask]
 
         return integral
 

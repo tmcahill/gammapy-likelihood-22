@@ -402,7 +402,7 @@ class RegularGridInterpolatorWithWeights(scipy.interpolate.RegularGridInterpolat
                 # print(weight[vslice])
                 values += np.asarray(self.values[edge_indices]) * weight[vslice]
                 unweighted_errors += np.asarray(bkg_errors[edge_indices])
-                errors += np.asarray(bkg_errors[edge_indices]) * weight[vslice]
+                errors += (np.asarray(bkg_errors[edge_indices]) * weight[vslice]) ** 2
 
                 """Place weights in array"""
                 if get_weights:
@@ -425,7 +425,7 @@ class RegularGridInterpolatorWithWeights(scipy.interpolate.RegularGridInterpolat
                         "indices": list(zip(*weights_indices)), 
                         "values": self.values,
                         "interp_vals": values,
-                        "errors": errors,
+                        "errors": np.sqrt(errors),
                         "unweighted_errors": unweighted_errors
                     }
             else:

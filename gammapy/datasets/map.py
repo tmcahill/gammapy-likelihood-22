@@ -354,6 +354,15 @@ class MapDataset(Dataset):
         self.unmasked_demb_vars = self._calc_demb_stats(bkg_stats)
 
     def _calc_demb_stats(self, bkg_stats, mask=None):
+        errors = bkg_stats["errors"]
+        # Potential div by 0 error?
+        if mask is not None:
+            errors = errors[mask]
+        
+        a_eff = np.where(True, (errors[0]/errors[1]) ** 2, None)
+        print("A_EFF: ", a_eff)
+        return a_eff
+
         if mask is not None:
             # 8 Weights per bin: 2 interp bounds per the 2 bkg-irf dimensions per the 2 integral bounds
             weights_lower = bkg_stats["weights"][:-1][mask]
