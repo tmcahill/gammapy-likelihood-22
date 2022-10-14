@@ -250,29 +250,6 @@ class SpectralModel(ModelBase):
             energy_max=energy_max,
             **kwargs,
         )
-    
-    @staticmethod
-    def static_integral_error(
-        self,
-        energy_min,
-        energy_max,
-        index,
-        amplitude,
-        reference,
-        epsilon=1e-4,
-        **kwargs
-    ):
-        return self._propagate_error(
-            epsilon=epsilon,
-            fct=self.evaluate_integral,
-            energy_min=energy_min,
-            energy_max=energy_max,
-            index=index,
-            amplitude=amplitude,
-            reference=reference,
-            **kwargs
-        )
-    
 
     def energy_flux(self, energy_min, energy_max, **kwargs):
         r"""Compute energy flux in given energy range.
@@ -776,9 +753,19 @@ class PowerLawSpectralModel(SpectralModel):
         # prefactor error
         val_error_term = np.square(index_error / val)
         amp_error_term = np.square(amp_error / amplitude)
-        #      z = C * x * y
-        # -->  z_err = z * |C| * sqrt[ (x_err/x)^2 + (y_err/y)^2 ]
-        prefactor_error = prefactor * np.abs(amplitude) * np.sqrt(val_error_term + amp_error_term)
+
+        # print("ERR UNITS: ")
+        # print("index_error: ", index_error.unit)
+        # print("val: ", "unitless")
+        # print("val_error_term: ", val_error_term.unit)
+        # print("amp_error: ", "unitless")
+        # print("amp: ", amplitude.unit)
+        # print("amp_error_term: ", amp_error_term.unit)
+        
+        #      z = C * x / y
+        # -->  z_err = |C| * x/y * sqrt[ (x_err/x)^2 + (y_err/y)^2 ]
+        # -->  z_err = z * sqrt[ (x_err/x)^2 + (y_err/y)^2 ]
+        prefactor_error = prefactor * np.sqrt(val_error_term + amp_error_term)
         
         upper_term = energy_max / reference
         upper = np.power(upper_term, val)
@@ -786,18 +773,18 @@ class PowerLawSpectralModel(SpectralModel):
         # bounds errors
         #
         # d/dx(y^x) = y^x log(y)
-        upper_der = upper * log(upper_term)
+        upper_der = upper * np.log(upper_term)
         #      z = f(x)
         # -->  z_error = |f'(x)| * x_error
         upper_error = np.abs(upper_der) * index_error
 
-        lower_term = (energy_min / reference)
+        lower_term = energy_min / reference
         lower = np.power(lower_term, val)
-        lower_der = lower * log(lower_term)
+        lower_der = lower * np.log(lower_term)
         lower_error = np.abs(lower_der) * index_error
 
         bound = upper - lower
-        integral = prefactor * (bound)
+        integral = prefactor * bound
         
         # result error
         bound_error = np.sqrt(np.square(upper_error) + np.square(lower_error))
@@ -812,7 +799,7 @@ class PowerLawSpectralModel(SpectralModel):
             integral[mask] = (amplitude * constant)[mask]
             integral_error[mask] = (np.abs(constant) * amp_error)[mask]
 
-        return integral
+        return integral, integral_error
 
     @staticmethod
     def evaluate_energy_flux(energy_min, energy_max, index, amplitude, reference):

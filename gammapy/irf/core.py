@@ -262,7 +262,7 @@ class IRF(metaclass=abc.ABCMeta):
             Interpolated values
         """
         # TODO: change to coord dict?
-        print(kwargs)
+        #print(kwargs)
         non_valid_axis = set(kwargs).difference(self.axes.names)
 
         if non_valid_axis:
@@ -279,7 +279,11 @@ class IRF(metaclass=abc.ABCMeta):
                 coords_default[key] = u.Quantity(coord, copy=False)
 
         if get_weights:
+            # print("EVALUATE:")
+            # print(bkg_stats)
             data, weights = self._interpolate(coords_default.values(), method=method, bkg_stats=bkg_stats, get_weights=get_weights)
+            # print("AFTER:", data)
+            # print(weights["errors"])
         else:
             data = self._interpolate(coords_default.values(), method=method)
 
@@ -321,12 +325,13 @@ class IRF(metaclass=abc.ABCMeta):
         axis = self.axes.index(axis_name)
         if get_weights:
             data, weights = self.evaluate(**kwargs, method="linear", bkg_stats=bkg_stats, get_weights=get_weights)
+            #print("INTEG_LOG_LOG: ", data, weights["errors"])
         else:
             data = self.evaluate(**kwargs, method="linear")
         #print(len(data))
         values = kwargs[axis_name]
         if get_weights:
-            return trapz_loglog(data, values, axis=axis, weights=weights), weights
+            return trapz_loglog(data, values, axis=axis, weights=weights)
         else:
             return trapz_loglog(data, values, axis=axis)
 

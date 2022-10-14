@@ -311,6 +311,7 @@ class DembCountsStatistic(CountsStatistic):
         return demb(self.n_on, self.n_on, *self.demb_vars)
 
     def _stat_fcn(self, mu, delta=0, index=None):
+        raise Exception("not implemented")
         return demb(self.n_on[index], self.mu_bkg[index] + mu, *self.demb_vars) - delta
 
     def _n_sig_matching_significance_fcn(self, n_sig, significance, index):

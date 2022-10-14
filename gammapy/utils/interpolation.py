@@ -125,8 +125,13 @@ class ScaledRegularGridInterpolator:
             if get_weights:
                 weighted_interpolator = RegularGridInterpolatorWithWeights(points=self._points_scaled, values=self._values_scaled, **self._kwargs)
                 values, weights = weighted_interpolator(points_interp, method, get_weights=get_weights, **kwargs)
+                #print(weights["errors"])
                 values = self.scale.inverse(values.reshape(points[0].shape))
-
+                # TODO: handle appropriately for different scales?
+                #print("val scale:", self.scale)
+                
+                weights["errors"] = self.scale.inverse(weights["errors"].reshape(points[0].shape))
+                #print(weights["errors"])
             else:
                 values = self._interpolate(points_interp, method, **kwargs)
                 values = self.scale.inverse(values.reshape(points[0].shape))
@@ -411,10 +416,10 @@ class RegularGridInterpolatorWithWeights(scipy.interpolate.RegularGridInterpolat
                     weights_indices.append(np.column_stack(edge_indices))
 
             # List/zip right now is for formatting the dtype easily
-            print('bkg_stats')
-            print(bkg_stats)
-            print("self.values")
-            print(self.values)
+            # print('bkg_stats')
+            # print(bkg_stats)
+            # print("self.values")
+            # print(self.values)
             # print(errors)
             # print(unweighted_errors)
             # print(weights_indices)

@@ -200,11 +200,15 @@ def make_map_background_irf(
         coords["fov_lat"] = fov_lat
 
     if bkg_stats is not None:
-        bkg_de, weights = bkg.integrate_log_log(**coords, axis_name="energy", bkg_stats=bkg_stats, get_weights=True)
+        bkg_de, errors = bkg.integrate_log_log(**coords, axis_name="energy", bkg_stats=bkg_stats, get_weights=True)
+        errors = (np.abs(d_omega * ontime) * errors).to_value("")
     else:
         bkg_de = bkg.integrate_log_log(**coords, axis_name="energy")
 
     data = (bkg_de * d_omega * ontime).to_value("")
+    # print("COUNTS DATA AND ERROR:")
+    # print(data[3][99])
+    # print(errors[3][99])
 
     if not use_region_center:
         data = np.sum(weights * data, axis=2)
@@ -215,8 +219,7 @@ def make_map_background_irf(
         bkg_map = bkg_map.downsample(factor=oversampling, axis_name="energy")
 
     if bkg_stats is not None:
-        weights["counts"] = bkg_stats
-        return bkg_map, weights
+        return bkg_map, errors
 
     return bkg_map
 

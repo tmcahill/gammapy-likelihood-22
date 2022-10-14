@@ -352,15 +352,16 @@ class MapDataset(Dataset):
         #     # Can probably just index this like npred before demb() is called...
         #     self.masked_demb_vars = self._calc_demb_stats(bkg_stats, mask=self.mask.data)
         self.unmasked_demb_vars = self._calc_demb_stats(bkg_stats)
+        return self.unmasked_demb_vars
 
-    def _calc_demb_stats(self, bkg_stats, mask=None):
-        errors = bkg_stats["errors"]
+    def _calc_demb_stats(self, errors, mask=None):
         # Potential div by 0 error?
         if mask is not None:
             errors = errors[mask]
         
-        a_eff = np.where(True, (errors[0]/errors[1]) ** 2, None)
-        print("A_EFF: ", a_eff)
+        #print("SHAPES: ", self.background.quantity.shape, errors.shape)
+        a_eff = np.square(self.background.quantity / errors)
+        #print("A_EFF: ", a_eff)
         return a_eff
 
         if mask is not None:
@@ -1187,12 +1188,12 @@ class MapDataset(Dataset):
         
         if self.stat_type == "demb":
             if self.mask is not None:
-                masked_demb_vars = ()
-                for vars in self.unmasked_demb_vars:
-                    masked_demb_vars += ( (vars[self.mask.data]), )
+                # masked_demb_vars = ()
+                # for vars in self.unmasked_demb_vars:
+                #     masked_demb_vars += ( (vars[self.mask.data]), )
 
                 return np.sum(
-                    demb(counts[self.mask.data], npred[self.mask.data], *masked_demb_vars)
+                    demb(counts[self.mask.data], npred[self.mask.data], self.unmasked_demb_vars[self.mask.data])
                 )
             else:
                 return np.sum(

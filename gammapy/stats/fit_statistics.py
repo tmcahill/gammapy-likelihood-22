@@ -126,13 +126,24 @@ def demb(n_on, mu_on, a_eff, truncation_value=TRUNCATION_VALUE):
     n_on = np.asanyarray(n_on, dtype=np.float64)
     # Expected counts
     mu_on = np.asanyarray(mu_on, dtype=np.float64)
+    a_eff = np.nan_to_num(np.asanyarray(a_eff, dtype=np.float64))
+
+    # n_on = np.where(n_on <= truncation_value, truncation_value, n_on)
+    # mu_on = np.where(mu_on <= truncation_value, truncation_value, mu_on)
+    # a_eff = np.where(a_eff <= truncation_value, truncation_value, a_eff)
 
     # n_eff is 1 everywhere as data is unweighted
     # n_eff = n_on.copy()
     # n_eff[True] = 1
     #print("shape: ", n_on.shape)
-
-    beta = (n_on + a_eff) / (mu_on + a_eff)
+    # print(n_on.shape)
+    # print(n_on)
+    # print(a_eff.shape)
+    # print(a_eff)
+    with np.errstate(divide="ignore", invalid="ignore"):
+        beta = np.nan_to_num(
+            (n_on + a_eff) / (mu_on + a_eff)
+        )
 
     
     """ Working """
