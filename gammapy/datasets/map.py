@@ -359,10 +359,15 @@ class MapDataset(Dataset):
         if mask is not None:
             errors = errors[mask]
         
+        #print("_calc_demb_stats:", type(errors), type(self.background.quantity))
+        #print(errors.unit)
+        #print(self.background.quantity.unit)
         #print("SHAPES: ", self.background.quantity.shape, errors.shape)
-        a_eff = np.square(self.background.quantity / errors)
+
+        a_eff = np.square(self.background.data / errors)
+        #a_eff = np.square(self.background.data / errors)
         #print("A_EFF: ", a_eff)
-        return a_eff
+        return np.nan_to_num(a_eff)
 
         if mask is not None:
             # 8 Weights per bin: 2 interp bounds per the 2 bkg-irf dimensions per the 2 integral bounds

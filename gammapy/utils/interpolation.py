@@ -145,17 +145,17 @@ class ScaledRegularGridInterpolator:
 
         if get_weights:
              # Reshape weights arrays to match new geom.
-            weights["weights"] = np.array(
-                weights["weights"],
-                # TODO: not have this hardcoded to 4 values
-                dtype=[('a', np.float64),('b', np.float64),('c', np.float64),('d', np.float64)]
-            ).reshape(values.shape)
+            # weights["weights"] = np.array(
+            #     weights["weights"],
+            #     # TODO: not have this hardcoded to 4 values
+            #     dtype=[('a', np.float64),('b', np.float64),('c', np.float64),('d', np.float64)]
+            # ).reshape(values.shape)
 
-            weights["indices"] = np.array(
-                # TODO: not have this hardcoded to 4 values
-                weights["indices"], 
-                dtype=[('a', np.ndarray),('b', np.ndarray),('c', np.ndarray),('d', np.ndarray)]
-            ).reshape(values.shape)
+            # weights["indices"] = np.array(
+            #     # TODO: not have this hardcoded to 4 values
+            #     weights["indices"], 
+            #     dtype=[('a', np.ndarray),('b', np.ndarray),('c', np.ndarray),('d', np.ndarray)]
+            # ).reshape(values.shape)
             
             return values, weights
 
@@ -347,8 +347,9 @@ class RegularGridInterpolatorWithWeights(scipy.interpolate.RegularGridInterpolat
         if not self.bounds_error and self.fill_value is not None:
             result[out_of_bounds] = self.fill_value
             if get_weights:
-                weights["weights"][out_of_bounds] = None
-                weights["indices"][out_of_bounds] = None
+                pass
+                # weights["errors"][out_of_bounds] = None
+                # weights["indices"][out_of_bounds] = None
                 #weights["errors"] = np.reshape(weights["errors"], (xi_shape[:-1] + self.values.shape[ndim:]))
 
         if get_weights:
@@ -406,14 +407,14 @@ class RegularGridInterpolatorWithWeights(scipy.interpolate.RegularGridInterpolat
                 # print(self.values[edge_indices])
                 # print(weight[vslice])
                 values += np.asarray(self.values[edge_indices]) * weight[vslice]
-                unweighted_errors += np.asarray(bkg_errors[edge_indices])
+                #unweighted_errors += np.asarray(bkg_errors[edge_indices])
                 errors += (np.asarray(bkg_errors[edge_indices]) * weight[vslice]) ** 2
 
                 """Place weights in array"""
-                if get_weights:
-                    # errors.append(np.column_stack(bkg_stats[edge_indices]))
-                    weights.append(weight[vslice])
-                    weights_indices.append(np.column_stack(edge_indices))
+                # if get_weights:
+                #     # errors.append(np.column_stack(bkg_stats[edge_indices]))
+                #     weights.append(weight[vslice])
+                #     weights_indices.append(np.column_stack(edge_indices))
 
             # List/zip right now is for formatting the dtype easily
             # print('bkg_stats')
@@ -426,12 +427,12 @@ class RegularGridInterpolatorWithWeights(scipy.interpolate.RegularGridInterpolat
 
             if get_weights:
                 return values, {
-                        "weights": list(zip(*weights)), 
-                        "indices": list(zip(*weights_indices)), 
-                        "values": self.values,
-                        "interp_vals": values,
+                        #"weights": list(zip(*weights)), 
+                        #"indices": list(zip(*weights_indices)), 
+                        #"values": self.values,
+                        #"interp_vals": values,
                         "errors": np.sqrt(errors),
-                        "unweighted_errors": unweighted_errors
+                        #"unweighted_errors": unweighted_errors
                     }
             else:
                 return values

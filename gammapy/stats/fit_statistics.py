@@ -56,6 +56,7 @@ def cash(n_on, mu_on, truncation_value=TRUNCATION_VALUE):
     # suppress zero division warnings, they are corrected below
     with np.errstate(divide="ignore", invalid="ignore"):
         stat = 2 * (mu_on - n_on * np.log(mu_on))
+    #print("TYPE:", type(stat))
     return stat
 
 
@@ -126,7 +127,8 @@ def demb(n_on, mu_on, a_eff, truncation_value=TRUNCATION_VALUE):
     n_on = np.asanyarray(n_on, dtype=np.float64)
     # Expected counts
     mu_on = np.asanyarray(mu_on, dtype=np.float64)
-    a_eff = np.nan_to_num(np.asanyarray(a_eff, dtype=np.float64))
+    a_eff = np.asanyarray(a_eff, dtype=np.float64)
+    #print("TYPES:", type(n_on), type(mu_on), type(a_eff))
 
     # n_on = np.where(n_on <= truncation_value, truncation_value, n_on)
     # mu_on = np.where(mu_on <= truncation_value, truncation_value, mu_on)
@@ -149,7 +151,7 @@ def demb(n_on, mu_on, a_eff, truncation_value=TRUNCATION_VALUE):
     """ Working """
     #stat = cash(n_on, beta * mu_on) + cash(a_eff, beta * a_eff)
     stat = cash(n_on, mu_on) + cash(a_eff, beta * a_eff)
-
+    #print("TYPE:", type(stat))
     """ Debug prints """
     # print("beta", beta)
     # print("s:", s)

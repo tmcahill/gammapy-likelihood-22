@@ -190,7 +190,7 @@ class MapDatasetMaker(Maker):
             use_region_center=use_region_center,
         )
 
-    def make_background(self, geom, observation):
+    def make_background(self, geom, observation, bkg_error=None):
         """Make background map.
 
         Parameters
@@ -206,6 +206,7 @@ class MapDatasetMaker(Maker):
             Background map.
         """
 
+        # TODO: guard against using bkg_errors in interp cases??
         bkg = observation.bkg
 
         if isinstance(bkg, Map):
@@ -220,6 +221,7 @@ class MapDatasetMaker(Maker):
             pointing=observation.fixed_pointing_info,
             ontime=observation.observation_time_duration,
             bkg=bkg,
+            bkg_error=bkg_error,
             geom=geom,
             oversampling=self.background_oversampling,
             use_region_center=use_region_center,
