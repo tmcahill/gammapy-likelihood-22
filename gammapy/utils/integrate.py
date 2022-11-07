@@ -77,6 +77,9 @@ def trapz_loglog(y, x, axis=-1, weights=None):
         amplitude=vals_energy_min,
         index_error=index_error,
         amp_error=vals_error_min,
+        r_0_err_term=np.square(vals_error_min / vals_energy_min), 
+        r_1_err_term=np.square(vals_error_max / vals_energy_max), 
+        Q= -index_denom - index_numer,
     )
 
     # print("NP EQUAL:", np.array_equal(pl1, pl2))

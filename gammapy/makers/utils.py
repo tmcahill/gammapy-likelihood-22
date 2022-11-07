@@ -200,8 +200,9 @@ def make_map_background_irf(
         coords["fov_lat"] = fov_lat
 
     if bkg_error is not None:
-        bkg_de, errors = bkg.integrate_log_log(**coords, axis_name="energy", bkg_stats=bkg_error, get_weights=True)
+        bkg_de, errors, errors_2 = bkg.integrate_log_log(**coords, axis_name="energy", bkg_stats=bkg_error, get_weights=True)
         errors = (np.abs(d_omega * ontime) * errors).to_value("")
+        errors_2 = (np.abs(d_omega * ontime) * errors_2).to_value("")
     else:
         bkg_de = bkg.integrate_log_log(**coords, axis_name="energy")
 
@@ -219,7 +220,7 @@ def make_map_background_irf(
         bkg_map = bkg_map.downsample(factor=oversampling, axis_name="energy")
 
     if bkg_error is not None:
-        return bkg_map, errors
+        return bkg_map, errors, errors_2
 
     return bkg_map
 

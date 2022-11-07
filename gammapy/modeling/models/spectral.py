@@ -731,7 +731,9 @@ class PowerLawSpectralModel(SpectralModel):
 
     @staticmethod
     def evaluate_integral_with_rate_errors(
-        energy_min, energy_max, index, amplitude, reference, index_error, amp_error
+        energy_min, energy_max, index, amplitude, reference, 
+        index_error, amp_error,
+        r_0_err_term, r_1_err_term, Q
     ):
         r"""Integrate power law analytically (static function).
 
@@ -799,7 +801,19 @@ class PowerLawSpectralModel(SpectralModel):
             integral[mask] = (amplitude * constant)[mask]
             integral_error[mask] = (np.abs(constant) * amp_error)[mask]
 
-        return integral, integral_error
+
+        ### Alt error calc:
+        #print("PREFACTOR:", prefactor[3][99])
+        #print("PREFACTOR:", prefactor[0][99])
+        c = prefactor/np.abs(Q)  # G(E_0)
+        t1 = r_0_err_term * np.square(Q + 1) + r_1_err_term
+        t2_p1 = np.power((energy_max/reference), (2-(2*val)))
+        t2_p2 = r_0_err_term + (r_1_err_term * np.square(Q-1))
+        t2 = t2_p1 * t2_p2
+
+        integral_error_2 = c * np.sqrt(t1 + t2)
+
+        return integral, integral_error, integral_error_2
 
     @staticmethod
     def evaluate_energy_flux(energy_min, energy_max, index, amplitude, reference):
