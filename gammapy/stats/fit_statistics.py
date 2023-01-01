@@ -142,23 +142,34 @@ def demb(n_on, mu_on, a_eff, truncation_value=TRUNCATION_VALUE):
     # print(n_on)
     # print(a_eff.shape)
     # print(a_eff)
+
+    """ Beta/a_eff debug """
     with np.errstate(divide="ignore", invalid="ignore"):
         beta = np.nan_to_num(
             (n_on + a_eff) / (mu_on + a_eff)
         )
-
+    # for i in range(40000, 44000):
+    #     first_term = "(" + str(n_on[i]) + " + " + str(a_eff[i]) + ")"
+    #     second_term = "(" + str(mu_on[i]) + " + " + str(a_eff[i]) + ")"
+    #     print("BETA: " + first_term + "/" + second_term + "  =  " + str(beta[i]))
+    # beta.tofile('beta')
+    # a_eff.tofile('a_eff')
     
     """ Working """
-    #stat = cash(n_on, beta * mu_on) + cash(a_eff, beta * a_eff)
-    stat = cash(n_on, mu_on) + cash(a_eff, beta * a_eff)
+    stat = cash(n_on, beta * mu_on) + cash(a_eff, beta * a_eff)
+    #stat = cash(n_on, mu_on) + cash(a_eff, beta * a_eff)
     #print("TYPE:", type(stat))
     """ Debug prints """
-    # print("beta", beta)
-    # print("s:", s)
-    # print("a_eff:", a_eff)
-    # print("n_eff", n_eff)
-    # print("k", k)
-    #print("stat: ", stat)
+    # term_1 = cash(n_on, beta * mu_on) 
+    # term_2 = cash(a_eff, beta * a_eff)
+
+    # term_idx = 0
+    # for term in [term_1, term_2]:
+    #     term_idx += 1
+    #     fname = 'cash_term_' + str(term_idx)
+    #     np.asanyarray(term, dtype=np.float64).tofile(fname)
+
+    # stat = term_1 + term_2
     
     return stat
 
