@@ -47,6 +47,7 @@ class ScaledRegularGridInterpolator:
         self,
         points,
         values,
+        value_errors=None,
         points_scale=None,
         values_scale="lin",
         extrapolate=True,
@@ -64,6 +65,7 @@ class ScaledRegularGridInterpolator:
         self._include_dimensions = [len(p) > 1 for p in points]
 
         values_scaled = self.scale(values)
+        #value_errors_scaled = self.scale(values*value_errors)
         points_scaled = self._scale_points(points=points)
 
         self._values_scaled = values_scaled
@@ -123,17 +125,37 @@ class ScaledRegularGridInterpolator:
             points = np.broadcast_arrays(*points)
             points_interp = np.stack([_.flat for _ in points]).T
             if get_weights:
+                #kwargs["bkg_stats"] = self.scale(kwargs["bkg_stats"])
                 weighted_interpolator = RegularGridInterpolatorWithWeights(points=self._points_scaled, values=self._values_scaled, **self._kwargs)
                 values, weights = weighted_interpolator(points_interp, method, get_weights=get_weights, **kwargs)
                 #print(weights["errors"])
+                """This only works with linear interp!!!"""
+                if isinstance(self.scale, LinearScale):
+                    values = np.clip(values, 1e-25, np.inf)
+                else:
+                    raise Exception("Non-linear interpolation not yet implemented for demb stat")
+
                 values = self.scale.inverse(values.reshape(points[0].shape))
-                # TODO: handle appropriately for different scales?
-                #print("val scale:", self.scale)
                 
-                weights["errors"] = self.scale.inverse(weights["errors"].reshape(points[0].shape))
-                #print(weights["errors"])
+                # TODO: handle appropriately for different scales?
+                #weights["errors"] = self.scale.inverse(weights["errors"].reshape(points[0].shape))
+                #print("val scale:", self.scale)
+                #print(values.unit)
+
+                #weights["errors"] = self.scale.inverse(weights["errors"].reshape(points[0].shape))
+
+                #weights["errors"] = values * weights["errors"].reshape(points[0].shape)
+
+                """ Better? """
+                weight_scale = interpolation_scale("lin")
+                weights["errors"] = u.Quantity(weights["errors"], unit="1 / (MeV s sr)", copy=False)
+                weights["errors"] = weight_scale.inverse(weights["errors"].reshape(points[0].shape))
+
             else:
                 values = self._interpolate(points_interp, method, **kwargs)
+                """This only works with linear interp!!!"""
+                if isinstance(self.scale, LinearScale):
+                    values = np.clip(values, 1e-25, np.inf)
                 values = self.scale.inverse(values.reshape(points[0].shape))
 
         else:
@@ -142,6 +164,9 @@ class ScaledRegularGridInterpolator:
 
         if clip:
             values = np.clip(values, 0, np.inf)
+            # print(values.value)
+            # values.value = np.clip(values.value, .00000000000001, np.inf)
+            # print(values.value)
 
         if get_weights:
              # Reshape weights arrays to match new geom.
@@ -210,11 +235,13 @@ class LogScale(InterpolationScale):
     tiny = np.finfo(np.float32).tiny
 
     def _scale(self, values):
+        #print("LOG SCALE")
         values = np.clip(values, self.tiny, np.inf)
         return np.log(values)
 
     @classmethod
     def _inverse(cls, values):
+        #print("LOG INVERSE SCALE")
         output = np.exp(values)
         return np.where(abs(output) - cls.tiny <= cls.tiny, 0, output)
 
@@ -224,11 +251,13 @@ class SqrtScale(InterpolationScale):
 
     @staticmethod
     def _scale(values):
+        print("SQRT SCALE")
         sign = np.sign(values)
         return sign * np.sqrt(sign * values)
 
     @classmethod
     def _inverse(cls, values):
+        print("SQRT INVERSE SCALE")
         return np.power(values, 2)
 
 
@@ -239,12 +268,14 @@ class StatProfileScale(InterpolationScale):
         self.axis = axis
 
     def _scale(self, values):
+        print("STAT SCALE")
         values = np.sign(np.gradient(values, axis=self.axis)) * values
         sign = np.sign(values)
         return sign * np.sqrt(sign * values)
 
     @classmethod
     def _inverse(cls, values):
+        print("STAT INVERSE SCALE")
         return np.power(values, 2)
 
 
@@ -253,10 +284,12 @@ class LinearScale(InterpolationScale):
 
     @staticmethod
     def _scale(values):
+        #print("LIN SCALE")
         return values
 
     @classmethod
     def _inverse(cls, values):
+        #print("LIN INVERSE SCALE")
         return values
 
 
@@ -408,7 +441,10 @@ class RegularGridInterpolatorWithWeights(scipy.interpolate.RegularGridInterpolat
                 # print(weight[vslice])
                 values += np.asarray(self.values[edge_indices]) * weight[vslice]
                 #unweighted_errors += np.asarray(bkg_errors[edge_indices])
+                """linear interp"""
                 errors += (np.asarray(bkg_errors[edge_indices]) * weight[vslice]) ** 2
+                """log interp"""
+                #errors += ((np.asarray(bkg_errors[edge_indices]) / np.asarray(self.values[edge_indices])) ** 2) * (weight[vslice] ** 2)
 
                 """Place weights in array"""
                 # if get_weights:
@@ -431,6 +467,8 @@ class RegularGridInterpolatorWithWeights(scipy.interpolate.RegularGridInterpolat
                         #"indices": list(zip(*weights_indices)), 
                         #"values": self.values,
                         #"interp_vals": values,
+                        "weights": errors,
+                        #"errors": np.sqrt(errors) # linear
                         "errors": np.sqrt(errors),
                         #"unweighted_errors": unweighted_errors
                     }
